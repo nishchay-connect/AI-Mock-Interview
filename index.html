@@ -39,6 +39,7 @@
         .neon-hover:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 20px rgba(0, 188, 212, 0.4), 0 0 20px var(--neon-blue);
+            cursor: pointer;
         }
 
         .neon-selected {
@@ -134,8 +135,39 @@
             <p id="header-subtitle" class="text-gray-400 text-lg">Your path to interview mastery starts here.</p>
         </header>
 
+        <!-- 0. Onboarding/Login Screen -->
+        <div id="onboarding-screen" class="screen-transition active flex justify-center pt-16">
+            <div class="glass-card p-8 rounded-2xl max-w-md w-full">
+                <h2 class="text-3xl font-bold text-white mb-4">Welcome, Future Expert!</h2>
+                <p class="text-gray-400 mb-6">Let's get your profile set up for a personalized session.</p>
+
+                <div class="space-y-4">
+                    <div>
+                        <label for="user-name" class="block text-sm font-medium text-gray-300 mb-1">Your Name</label>
+                        <input type="text" id="user-name" 
+                               class="w-full px-4 py-2 rounded-lg bg-gray-800 text-white border border-gray-700 focus:ring-neon-blue focus:border-neon-blue transition"
+                               placeholder="e.g., Alex Johnson">
+                    </div>
+                    <div>
+                        <label for="user-email" class="block text-sm font-medium text-gray-300 mb-1">Email (Optional)</label>
+                        <input type="email" id="user-email" 
+                               class="w-full px-4 py-2 rounded-lg bg-gray-800 text-white border border-gray-700 focus:ring-neon-blue focus:border-neon-blue transition"
+                               placeholder="For future report delivery">
+                    </div>
+                </div>
+                
+                <button id="proceed-to-roles-btn" disabled
+                        class="w-full mt-8 px-8 py-3 rounded-xl font-bold text-lg text-white transition duration-300 transform bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        style="background-image: linear-gradient(to right, var(--neon-blue), var(--neon-pink));"
+                >
+                    Proceed to Roles
+                </button>
+            </div>
+        </div>
+
+
         <!-- 1. Role Selection Screen -->
-        <div id="role-selection-screen" class="screen-transition active">
+        <div id="role-selection-screen" class="hidden screen-transition">
             <h2 class="text-2xl font-semibold mb-6 text-center">Select Your Interview Role</h2>
             <div id="role-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <!-- Role Cards will be inserted here by JS -->
@@ -373,8 +405,10 @@
         const SPEECH_RECOGNITION = window.SpeechRecognition || window.webkitSpeechRecognition;
 
         let state = {
-            currentScreen: 'role-selection',
+            currentScreen: 'onboarding',
             selectedRole: null,
+            userName: '',
+            userEmail: '',
             interviewRunning: false,
             recognition: null,
             chatHistory: [],
@@ -390,9 +424,9 @@
             lastAiQuestion: null, // Stores the last question asked by the AI for analysis context
         };
 
-        // --- GEMINI API CONFIGURATION (DUAL KEY ARCHITECTURE) ---
+        // --- GEMINI API CONFIGURATION (DUAL KEY ARCHITECTURE RESTORED) ---
         // !!! IMPORTANT: Paste your Conversation Carrier (CC) / TTS API Key here:
-        const ccApiKey = "AIzaSyAoGZ4loY3NiyyaTRFuT40BwbhNsxwjU1Q"; 
+        const ccApiKey = "AIzaSyDGOhaz_o3-RA0s85G_ljy-_aT51gDAsH0"; 
         
         // !!! IMPORTANT: Paste your Analyser Component (AC) API Key here:
         const acApiKey = "AIzaSyAUtP3WQc8__6vjl-1bGomX0oColXiKbe4";
@@ -429,6 +463,10 @@
         const $ = (id) => document.getElementById(id);
 
         const elements = {
+            onboardingScreen: $('onboarding-screen'),
+            userNameInput: $('user-name'),
+            userEmailInput: $('user-email'),
+            proceedToRolesBtn: $('proceed-to-roles-btn'),
             roleSelectionScreen: $('role-selection-screen'),
             interviewScreen: $('interview-screen'),
             reportLoadingScreen: $('report-loading-screen'),
@@ -698,7 +736,6 @@ Your response MUST strictly adhere to the provided JSON schema.`;
 
             // Check if AC API key is set before proceeding
             if (!acApiKey || acApiKey === "") {
-                showMessage("Analyser Component (AC) API Key is missing. Live analysis is disabled.", true);
                 return null;
             }
 
@@ -838,7 +875,7 @@ ${transcriptText}
 
         /** Switches the current view */
         function showScreen(screenId) {
-            const screens = [elements.roleSelectionScreen, elements.interviewScreen, elements.reportScreen, elements.reportLoadingScreen];
+            const screens = [elements.onboardingScreen, elements.roleSelectionScreen, elements.interviewScreen, elements.reportScreen, elements.reportLoadingScreen];
             screens.forEach(screen => {
                 screen.classList.remove('active');
                 screen.classList.add('hidden');
@@ -859,7 +896,7 @@ ${transcriptText}
             ROLES.forEach(role => {
                 const isSelected = state.selectedRole && state.selectedRole.id === role.id;
                 const card = document.createElement('div');
-                card.className = `glass-card p-6 rounded-xl cursor-pointer neon-hover transition duration-300 ${isSelected ? 'neon-selected' : ''}`;
+                card.className = `glass-card p-6 rounded-xl transition duration-300 ${isSelected ? 'neon-selected' : 'neon-hover'}`;
                 card.innerHTML = `
                     <h3 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-400 mb-2">${role.name}</h3>
                     <p class="text-gray-400 text-sm">${role.description}</p>
@@ -1032,7 +1069,7 @@ ${transcriptText}
                         const wavBlob = pcmToWav(audioBuffer);
                         audioUrl = URL.createObjectURL(wavBlob);
                     } else {
-                        showMessage("TTS API error: Could not generate audio.", true);
+                        showMessage("TTS API error: Audio data not received. Check key permissions for TTS model.", true);
                     }
                 } catch (error) {
                     // console.error('Gemini TTS API Error:', error);
@@ -1099,11 +1136,16 @@ ${transcriptText}
 
         function startListening() {
             if (!SPEECH_RECOGNITION) {
-                showMessage("Speech-to-Text is not supported in this browser (Use Chrome or Edge).");
+                showMessage("Speech-to-Text is not supported in this browser (Use Chrome or Edge).", true);
                 return;
             }
             if (state.interviewRunning) {
                 try {
+                    // Check if recognition is already running to avoid errors
+                    if (state.recognition && state.recognition.recognizing) {
+                        return;
+                    }
+                    
                     state.recognition.start();
                     elements.micStatus.style.backgroundColor = 'var(--neon-blue)';
                     elements.interimTranscript.textContent = 'Listening...';
@@ -1128,7 +1170,7 @@ ${transcriptText}
 
         function setupSTT() {
             if (!SPEECH_RECOGNITION) {
-                showMessage("Browser STT (webkitSpeechRecognition) not found. Interview cannot run.");
+                showMessage("Browser STT (webkitSpeechRecognition) not found. Interview cannot run.", true);
                 return;
             }
 
@@ -1166,6 +1208,9 @@ ${transcriptText}
                     addMessage('user', finalTranscriptText);
                     elements.interimTranscript.textContent = 'Transcript recorded. AI is thinking...';
 
+                    // Stop recognition immediately to lock in the complete thought and prevent lag
+                    state.recognition.stop(); 
+                    
                     // 1. Trigger Analysis (AC) - Analysis must run before the next question is generated for CC context
                     updateAnalysis(finalTranscriptText); 
                     
@@ -1208,10 +1253,38 @@ ${transcriptText}
 
         // --- FLOW / EVENT HANDLERS ---
 
+        /** Handles clicking the 'Proceed to Roles' button. */
+        function handleOnboardingProceed() {
+            const name = elements.userNameInput.value.trim();
+            const email = elements.userEmailInput.value.trim();
+
+            if (name.length < 2) {
+                showMessage("Please enter your name to proceed.", true);
+                return;
+            }
+
+            state.userName = name;
+            state.userEmail = email;
+            elements.headerTitle.textContent = `Welcome, ${state.userName}!`;
+            elements.headerSubtitle.textContent = 'Select your expert role below.';
+            
+            showScreen('role-selection-screen');
+        }
+
+        /** Handles input changes on the name field */
+        function handleNameInput() {
+            elements.proceedToRolesBtn.disabled = elements.userNameInput.value.trim().length < 2;
+        }
+
+
         /** Initializes the application and renders the first screen. */
         function initApp() {
             renderRoleSelection();
             setupSTT();
+            
+            // Set up event listeners for the onboarding screen
+            elements.userNameInput.addEventListener('input', handleNameInput);
+            elements.proceedToRolesBtn.addEventListener('click', handleOnboardingProceed);
 
             elements.startInterviewBtn.addEventListener('click', startInterview);
             elements.endInterviewBtn.addEventListener('click', endInterview);
@@ -1222,6 +1295,12 @@ ${transcriptText}
         /** Begins the interview flow. */
         function startInterview() {
             if (!state.selectedRole) return;
+
+            // Check API keys again before starting core processes
+            if (!ccApiKey || ccApiKey === "" || !acApiKey || acApiKey === "") {
+                showMessage("API KEY ERROR: Please enter both CC and AC keys at the top of the script.", true);
+                return;
+            }
 
             // Reset state for new interview
             state.interviewRunning = true;
@@ -1244,12 +1323,12 @@ ${transcriptText}
 
             // Update header and screen
             elements.currentRoleDisplay.textContent = state.selectedRole.name;
-            elements.headerTitle.textContent = `${state.selectedRole.name} Mock Interview`;
-            elements.headerSubtitle.textContent = 'Practice makes perfect.';
+            elements.headerTitle.textContent = `${state.selectedRole.name} Interview`;
+            elements.headerSubtitle.textContent = `Good luck, ${state.userName || 'Candidate'}!`;
             showScreen('interview-screen');
 
             // Start AI with the first question (triggers the Text/TTS API call sequence)
-            const initialQuestion = `Hello, thank you for coming in today. We'll be conducting an interview for the ${state.selectedRole.name} position. To start, can you please tell me a bit about your background and why you are interested in this role?`;
+            const initialQuestion = `Hello ${state.userName}, thank you for coming in today. We'll be conducting an interview for the ${state.selectedRole.name} position. To start, can you please tell me a bit about your background and why you are interested in this role?`;
             
             setTimeout(() => {
                 fetchGeminiAudio(initialQuestion);
@@ -1365,7 +1444,8 @@ ${transcriptText}
             // --- Full Report Content ---
             else if (type === 'full') {
                 content = `--- AI MOCK INTERVIEW REPORT: ${state.selectedRole.name} ---\n`;
-                content += `Date: ${new Date().toLocaleString()}\n\n`;
+                content += `Date: ${new Date().toLocaleString()}\n`;
+                content += `Candidate: ${state.userName}\n\n`;
                 content += `--- SCORE SUMMARY ---\n`;
                 content += `Overall Score: ${overall.toFixed(1)} / 5.0\n`;
                 content += `Communication Average: ${commAvg.toFixed(1)}/5.0 (${Math.round(commAvg * 20)}%)\n`;
