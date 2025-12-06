@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Mock Interview Platform</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the dark, neon-like theme and glassmorphism */
+        :root {
+            --bg-dark: #12121e;
+            --neon-blue: #00bcd4;
+            --neon-pink: #ff3c8d;
+            --card-bg: rgba(30, 30, 45, 0.8);
+            --chat-user-bg: rgba(0, 188, 212, 0.15);
+            --chat-ai-bg: rgba(255, 60, 141, 0.15);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: #e0e0e0;
+        }
+
+        .glass-card {
+            background-color: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .neon-border {
+            border: 2px solid transparent;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .neon-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 188, 212, 0.4), 0 0 20px var(--neon-blue);
+        }
+
+        .neon-selected {
+            border-color: var(--neon-pink);
+            box-shadow: 0 0 15px var(--neon-pink), inset 0 0 10px var(--neon-pink);
+            transform: scale(1.02);
+        }
+
+        .progress-bar-fill {
+            transition: width 0.8s ease-out;
+        }
+
+        /* Webkit STT Interim text style */
+        .interim-text {
+            color: #b3b3b3;
+            font-style: italic;
+        }
+
+        /* Scrollbar styling for a cleaner look */
+        .custom-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        /* Typing cursor animation */
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        .typing-cursor {
+            animation: blink 1s step-end infinite;
+        }
+
+        /* Screen transition effect */
+        .screen-transition {
+            opacity: 0;
+            transform: scale(0.98);
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+        .screen-transition.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        /* Markdown rendering styles for the detailed report - Applied to specific output divs */
+        .report-section h3 {
+            font-weight: 700;
+            font-size: 1.125rem; /* text-xl */
+            color: var(--neon-pink);
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .report-section strong {
+            color: #fff;
+            font-weight: 600;
+        }
+        .report-section ul {
+            list-style-type: disc;
+            margin-left: 1.5rem;
+            padding-left: 0;
+        }
+        .report-section li {
+            margin-bottom: 0.5rem;
+            color: #d1d5db;
+        }
+        .report-section p {
+            margin-bottom: 0.75rem;
+        }
+        .report-section.conclusion-card {
+            background-image: linear-gradient(to right, rgba(0, 188, 212, 0.1), rgba(255, 60, 141, 0.1));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+    </style>
+    <!-- Use Inter font from CDN -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen p-4 sm:p-8">
+
+    <!-- Main Application Container -->
+    <div id="app" class="max-w-7xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-500 pb-2">
+                <span id="header-title">Mock Interview AI</span>
+            </h1>
+            <p id="header-subtitle" class="text-gray-400 text-lg">Your path to interview mastery starts here.</p>
+        </header>
+
+        <!-- 1. Role Selection Screen -->
+        <div id="role-selection-screen" class="screen-transition active">
+            <h2 class="text-2xl font-semibold mb-6 text-center">Select Your Interview Role</h2>
+            <div id="role-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Role Cards will be inserted here by JS -->
+            </div>
+            <div class="flex justify-center mt-10">
+                <button id="start-interview-btn" disabled
+                    class="px-8 py-3 rounded-xl font-bold text-lg text-white transition duration-300 transform bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style="background-image: linear-gradient(to right, var(--neon-blue), var(--neon-pink));"
+                >
+                    Start Interview
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. Interview Screen -->
+        <div id="interview-screen" class="hidden screen-transition">
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 h-[75vh]">
+                <!-- Left Panel: Chat & Speech (2/3 width on desktop) -->
+                <div class="lg:col-span-3 flex flex-col glass-card rounded-2xl p-6 h-full">
+                    <h2 class="text-xl font-semibold text-white mb-4 border-b border-gray-700 pb-2">
+                        Interview: <span id="current-role-display" class="text-cyan-400"></span>
+                    </h2>
+
+                    <!-- Chat Container -->
+                    <div id="chat-container" class="flex-grow overflow-y-auto custom-scroll space-y-4 mb-4">
+                        <!-- Messages will appear here -->
+                    </div>
+
+                    <!-- Speech Indicator & Input Area -->
+                    <div class="p-3 rounded-xl border border-gray-700 flex items-center bg-gray-800">
+                        <div id="mic-status" class="w-4 h-4 rounded-full mr-3 transition-colors duration-500 bg-gray-500"></div>
+                        <p id="interim-transcript" class="flex-grow interim-text text-base truncate">
+                            Click 'Start' to begin. Speak clearly into your microphone.
+                        </p>
+                        <div id="ai-thinking-indicator" class="hidden text-sm text-pink-400 ml-4 flex items-center">
+                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-pink-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            AI Thinking... (and talking)
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <div class="flex justify-center mt-4 space-x-4">
+                        <button id="end-interview-btn"
+                            class="px-6 py-2 rounded-xl font-semibold text-white transition duration-300 bg-red-600 hover:bg-red-700"
+                            title="Stops the interview and generates the final report."
+                        >
+                            End Interview & Report
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Live Analysis (1/3 width on desktop) -->
+                <div class="lg:col-span-2 flex flex-col glass-card rounded-2xl p-6 h-full">
+                    <h2 class="text-xl font-semibold text-white mb-4 border-b border-gray-700 pb-2">
+                        Live Performance Analysis
+                    </h2>
+
+                    <!-- Overall Score -->
+                    <div class="mb-6 p-4 rounded-xl bg-gray-800/50">
+                        <p class="text-sm font-medium text-gray-400">Overall Score (Running Average)</p>
+                        <div class="flex items-center mt-1">
+                            <span id="overall-score-display" class="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-orange-500">
+                                0.0
+                            </span>
+                            <span class="text-lg font-bold text-gray-400 ml-2">/ 5.0</span>
+                        </div>
+                    </div>
+
+                    <!-- Score Bars -->
+                    <div class="space-y-4 mb-6">
+                        <!-- Communication -->
+                        <div id="score-comm" class="score-bar-group">
+                            <p class="text-sm font-medium text-cyan-400 flex justify-between">
+                                Communication
+                                <span class="score-value font-bold">0%</span>
+                            </p>
+                            <div class="w-full bg-gray-700 rounded-full h-2.5 mt-1">
+                                <div class="progress-bar-fill h-2.5 rounded-full" style="width: 0%; background-color: var(--neon-blue);"></div>
+                            </div>
+                        </div>
+
+                        <!-- Technical -->
+                        <div id="score-tech" class="score-bar-group">
+                            <p class="text-sm font-medium text-pink-400 flex justify-between">
+                                Technical Depth
+                                <span class="score-value font-bold">0%</span>
+                            </p>
+                            <div class="w-full bg-gray-700 rounded-full h-2.5 mt-1">
+                                <div class="progress-bar-fill h-2.5 rounded-full" style="width: 0%; background-color: var(--neon-pink);"></div>
+                            </div>
+                        </div>
+
+                        <!-- Confidence -->
+                        <div id="score-conf" class="score-bar-group">
+                            <p class="text-sm font-medium text-green-400 flex justify-between">
+                                Confidence & Fluency
+                                <span class="score-value font-bold">0%</span>
+                            </p>
+                            <div class="w-full bg-gray-700 rounded-full h-2.5 mt-1">
+                                <div class="progress-bar-fill h-2.5 rounded-full" style="width: 0%; background-color: #10b981;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Notes / Insights -->
+                    <div class="flex-grow p-4 rounded-xl border border-gray-700 bg-gray-800/50 custom-scroll overflow-y-auto">
+                        <h3 class="text-base font-semibold text-gray-300 mb-2 flex items-center">
+                            <span class="text-yellow-400 mr-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                </svg>
+                            </span>
+                            Live Insights
+                        </h3>
+                        <ul id="live-notes" class="space-y-2 text-sm text-gray-400">
+                            <!-- Live notes will appear here -->
+                            <li class="tip-default italic">Your real-time analysis will appear here after your first answer.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 2.5 Report Loading Screen -->
+        <div id="report-loading-screen" class="hidden fixed inset-0 z-50 bg-gray-900 bg-opacity-95 flex items-center justify-center screen-transition">
+            <div class="text-center p-8 glass-card rounded-2xl max-w-lg">
+                <svg class="animate-spin h-10 w-10 text-cyan-400 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <h3 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-red-500 mb-2">
+                    Analyzing Performance...
+                </h3>
+                <p class="text-gray-400">Generating detailed feedback and score breakdown. This may take a moment.</p>
+            </div>
+        </div>
+
+        <!-- 3. Report Screen -->
+        <div id="report-screen" class="hidden screen-transition">
+            <h2 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-red-500 mb-6 text-center">
+                Interview Complete! Final Report
+            </h2>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Score Summary Card -->
+                <div class="lg:col-span-1 flex flex-col glass-card rounded-2xl p-6">
+                    <h3 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">Summary Score</h3>
+                    <div class="flex items-center justify-center mb-6">
+                        <p class="text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-orange-500">
+                            <span id="final-overall-score">0.0</span>
+                        </p>
+                        <span class="text-2xl font-bold text-gray-400 ml-2">/ 5.0</span>
+                    </div>
+
+                    <div id="final-scores-bars" class="space-y-4 flex-grow">
+                        <!-- Final Score Bars will be cloned/updated here -->
+                    </div>
+
+                    <button id="download-full-report-btn"
+                        class="mt-6 w-full px-4 py-2 rounded-lg font-semibold text-white transition duration-300 bg-cyan-600 hover:bg-cyan-700 flex items-center justify-center"
+                        title="Download the full score summary, detailed feedback, and transcript."
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            <path d="M10 2a1 1 0 011 1v7h-2V3a1 1 0 011-1z" />
+                        </svg>
+                        Download Full Report (.txt)
+                    </button>
+                    
+                    <button id="download-transcript-btn"
+                        class="mt-3 w-full px-4 py-2 rounded-lg font-semibold text-white transition duration-300 bg-gray-600 hover:bg-gray-700 flex items-center justify-center"
+                        title="Download only the question and answer transcript."
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5-5 2.5V4z" />
+                        </svg>
+                        Download Transcript (.txt)
+                    </button>
+
+                </div>
+
+                <!-- Full Detailed Analysis -->
+                <div class="lg:col-span-2 space-y-4">
+                    <!-- LLM Output Sections will be rendered here -->
+                    <div id="report-summary-card" class="glass-card report-section p-6 rounded-2xl">
+                        <h3 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-red-500 mb-2">Overall Summary</h3>
+                        <p class="text-gray-400 italic">Analysis pending...</p>
+                    </div>
+
+                    <div id="report-technical-card" class="glass-card report-section p-6 rounded-2xl">
+                        <h3>Technical Depth & Suggestions</h3>
+                        <p class="text-gray-400 italic">Analysis pending...</p>
+                    </div>
+
+                    <div id="report-communication-card" class="glass-card report-section p-6 rounded-2xl">
+                        <h3>Communication & Fluency Suggestions</h3>
+                        <p class="text-gray-400 italic">Analysis pending...</p>
+                    </div>
+
+                    <div id="report-conclusion-card" class="glass-card report-section conclusion-card p-6 rounded-2xl">
+                        <h3>Concluding Feedback</h3>
+                        <p class="text-gray-400 italic">Analysis pending...</p>
+                    </div>
+
+                </div>
+            </div>
+            
+            <div class="mt-6 glass-card rounded-2xl p-6">
+                 <h3 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">Full Interview Transcript</h3>
+                 <div id="report-transcript-container" class="h-[20vh] overflow-y-auto custom-scroll space-y-4 text-sm">
+                        <!-- Transcript will be inserted here -->
+                 </div>
+            </div>
+        </div>
+
+        <!-- Global Toast/Message Box -->
+        <div id="message-box" class="fixed bottom-5 right-5 z-50 p-4 rounded-xl shadow-lg bg-red-700 text-white hidden">
+            <p id="message-text">STT is not supported in this browser.</p>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- CONSTANTS & GLOBAL STATE ---
+        const ROLES = [
+            { id: 'ai-engineer', name: 'AI Engineer', description: 'Focuses on ML ops, production systems, and cloud integration.' },
+            { id: 'data-scientist', name: 'Data Scientist', description: 'Emphasizes statistical modeling, hypothesis testing, and data analysis.' },
+            { id: 'ml-researcher', name: 'ML Researcher', description: 'Questions on fundamental algorithms, paper review, and novel architecture design.' },
+            { id: 'software-developer', name: 'Software Developer', description: 'Core computer science, data structures, and system design.' },
+        ];
+
+        const SPEECH_RECOGNITION = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        let state = {
+            currentScreen: 'role-selection',
+            selectedRole: null,
+            interviewRunning: false,
+            recognition: null,
+            chatHistory: [],
+            // Stores the running total of scores and count for average calculation
+            runningScores: {
+                communication: { total: 0, count: 0, current: 0 },
+                technical: { total: 0, count: 0, current: 0 },
+                confidence: { total: 0, count: 0, current: 0 },
+                overall: 0,
+            },
+            aiIsTyping: false,
+            sttRestartTimer: null,
+            lastAiQuestion: null, // Stores the last question asked by the AI for analysis context
+        };
+
+        // --- GEMINI API CONFIGURATION (DUAL KEY ARCHITECTURE) ---
+        // !!! IMPORTANT: Paste your Conversation Carrier (CC) / TTS API Key here:
+        const ccApiKey = "AIzaSyAoGZ4loY3NiyyaTRFuT40BwbhNsxwjU1Q"; 
+        
+        // !!! IMPORTANT: Paste your Analyser Component (AC) API Key here:
+        const acApiKey = "AIzaSyAUtP3WQc8__6vjl-1bGomX0oColXiKbe4";
+
+        // Model for Text Generation (Conversation Carrier - CC)
+        const TEXT_MODEL = "gemini-2.5-flash-preview-09-2025";
+        const TEXT_API_BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent?key=${ccApiKey}`;
+
+        // Model for Structured Analysis (Analyser Component - AC)
+        const ANALYSIS_MODEL = "gemini-2.5-flash-preview-09-2025";
+        const ANALYSIS_API_BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${ANALYSIS_MODEL}:generateContent?key=${acApiKey}`;
+
+        // Model for Text-to-Speech (TTS)
+        const TTS_MODEL = "gemini-2.5-flash-preview-tts";
+        const TTS_VOICE = "Kore"; // A firm, professional voice
+        const TTS_API_BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent?key=${ccApiKey}`;
+        
+        // JSON Schema for structured analysis output (used for live analysis)
+        const ANALYSIS_SCHEMA = {
+            type: "OBJECT",
+            properties: {
+                communication: { "type": "NUMBER", "description": "Score from 1.0 to 5.0 on clarity, structure, and ability to explain concepts." },
+                technical: { "type": "NUMBER", "description": "Score from 1.0 to 5.0 on accuracy, depth, and relevance of technical concepts used." },
+                confidence: { "type": "NUMBER", "description": "Score from 1.0 to 5.0 on fluency, pace, and conviction in the answer." },
+                liveTip: { "type": "STRING", "description": "A concise, one-liner tip (max 15 words) specific to the user's latest response (e.g., 'Elaborate on the \"why\" for better depth.')." }
+            },
+            required: ["communication", "technical", "confidence", "liveTip"]
+        };
+        
+        // Audio playback instance
+        let audioPlayer = null;
+
+        // --- DOM ELEMENTS ---
+        const $ = (id) => document.getElementById(id);
+
+        const elements = {
+            roleSelectionScreen: $('role-selection-screen'),
+            interviewScreen: $('interview-screen'),
+            reportLoadingScreen: $('report-loading-screen'),
+            reportScreen: $('report-screen'),
+            roleGrid: $('role-grid'),
+            startInterviewBtn: $('start-interview-btn'),
+            endInterviewBtn: $('end-interview-btn'),
+            chatContainer: $('chat-container'),
+            interimTranscript: $('interim-transcript'),
+            micStatus: $('mic-status'),
+            aiThinkingIndicator: $('ai-thinking-indicator'),
+            currentRoleDisplay: $('current-role-display'),
+            overallScoreDisplay: $('overall-score-display'),
+            liveNotes: $('live-notes'),
+            messageBox: $('message-box'),
+            messageText: $('message-text'),
+            finalScoresBars: $('final-scores-bars'),
+            reportTranscriptContainer: $('report-transcript-container'),
+            detailedFeedbackContainer: $('detailed-feedback-container'),
+            downloadFullReportBtn: $('download-full-report-btn'),
+            downloadTranscriptBtn: $('download-transcript-btn'),
+            headerTitle: $('header-title'),
+            headerSubtitle: $('header-subtitle'),
+            // New report section elements
+            reportSummaryCard: $('report-summary-card'),
+            reportTechnicalCard: $('report-technical-card'),
+            reportCommunicationCard: $('report-communication-card'),
+            reportConclusionCard: $('report-conclusion-card'),
+        };
+        
+        // --- MARKDOWN UTILITY ---
+        // Basic Markdown parser for report display
+        function parseMarkdown(markdownText) {
+            let html = markdownText || '';
+            
+            // Convert list items (must be first)
+            html = html.replace(/^- (.*$)/gim, '<li>$1</li>');
+            html = html.replace(/^(<li>.*<\/li>(\n|$))+/gim, '<ul>$1</ul>');
+
+            // Convert **bold** or __bold__ to <strong>
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+            
+            // Convert ## headings to <h3> tags (since we handle H1/H2 with CSS)
+            html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+
+            // Convert line breaks to paragraphs
+            html = html.replace(/\n\n/g, '</p><p>');
+            html = html.replace(/\n/g, '<br>'); 
+            
+            // Wrap plain text sections in paragraphs if they aren't already lists/headings
+            if (!html.startsWith('<h3') && !html.startsWith('<ul>')) {
+                html = `<p>${html}</p>`;
+            }
+            
+            // Clean up potentially empty paragraph tags
+            html = html.replace(/<p><\/p>/g, '');
+            
+            return html;
+        }
+        
+        // --- LLM REPORT SPLITTER ---
+        // Splits the single LLM markdown output into structured sections
+        function splitReport(markdownText) {
+            const sections = {
+                summary: 'Analysis pending...',
+                technical: 'Analysis pending...',
+                communication: 'Analysis pending...',
+                conclusion: 'Analysis pending...',
+            };
+
+            const lines = (markdownText || '').split('\n');
+            let currentSection = null;
+            let sectionContent = [];
+
+            const sectionMap = {
+                'Overall Score Summary': 'summary',
+                'Technical Depth & Suggestions': 'technical',
+                'Communication & Fluency Suggestions': 'communication',
+                'Concluding Feedback': 'conclusion',
+            };
+
+            for (const line of lines) {
+                let foundHeader = false;
+                for (const header in sectionMap) {
+                    if (line.trim().startsWith(`## ${header}`) || line.trim().startsWith(`### ${header}`)) {
+                        if (currentSection) {
+                            sections[currentSection] = sectionContent.join('\n').trim();
+                        }
+                        currentSection = sectionMap[header];
+                        sectionContent = [];
+                        foundHeader = true;
+                        break;
+                    }
+                }
+
+                if (!foundHeader && currentSection) {
+                    sectionContent.push(line);
+                } else if (!currentSection && line.trim().length > 0) {
+                     // Handle initial introductory text before the first section
+                     sections.summary = (sections.summary === 'Analysis pending...' ? '' : sections.summary) + line + '\n';
+                }
+            }
+
+            if (currentSection) {
+                sections[currentSection] = sectionContent.join('\n').trim();
+            }
+            
+            // If the summary didn't catch anything, try to capture the first paragraph as summary
+            if (sections.summary.startsWith('Analysis pending...') && lines.length > 0) {
+                sections.summary = lines.slice(0, lines.findIndex(l => l.startsWith('#') || l.startsWith('##') || l.startsWith('###')) || lines.length).join('\n').trim();
+            }
+
+            return sections;
+        }
+
+
+        // --- UTILITY FUNCTIONS (continued) ---
+
+        /** Smoothly scrolls the chat container to the bottom */
+        function autoScrollChat() {
+            elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+        }
+
+        /** Retries fetch with exponential backoff */
+        async function retryFetch(url, options, maxRetries = 5, delay = 1000) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status !== 429 && response.ok) {
+                        return response;
+                    }
+                    if (response.status === 429 || !response.ok) {
+                        // console.log(`Attempt ${i + 1} failed with status ${response.status}. Retrying in ${delay}ms...`);
+                    } else {
+                        return response; // Success
+                    }
+                } catch (error) {
+                    // console.log(`Attempt ${i + 1} failed with error: ${error.message}. Retrying in ${delay}ms...`);
+                }
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay *= 2;
+            }
+            throw new Error('API request failed after multiple retries.');
+        }
+
+        /** Shows a temporary message/toast */
+        function showMessage(text, isError = true) {
+            elements.messageText.textContent = text;
+            elements.messageBox.style.backgroundColor = isError ? '#dc2626' : '#059669';
+            elements.messageBox.classList.remove('hidden');
+            setTimeout(() => {
+                elements.messageBox.classList.add('hidden');
+            }, 5000);
+        }
+
+        /** Base64 to ArrayBuffer utility for audio decoding */
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        /** Converts PCM (Pulse Code Modulation) audio data to a playable WAV Blob */
+        function pcmToWav(pcmData, sampleRate = 24000) {
+            const numChannels = 1;
+            const bytesPerSample = 2; // 16-bit PCM
+            const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign;
+
+            const buffer = new ArrayBuffer(44 + pcmData.byteLength);
+            const view = new DataView(buffer);
+            let offset = 0;
+
+            /* Utility function to write a string to the DataView */
+            function writeString(str) {
+                for (let i = 0; i < str.length; i++) {
+                    view.setUint8(offset++, str.charCodeAt(i));
+                }
+            }
+
+            // RIFF chunk
+            writeString('RIFF');
+            view.setUint32(offset, 36 + pcmData.byteLength, true); offset += 4;
+            writeString('WAVE');
+
+            // FMT chunk
+            writeString('fmt ');
+            view.setUint32(offset, 16, true); offset += 4; // Sub-chunk size
+            view.setUint16(offset, 1, true); offset += 2;  // Audio format (1 for PCM)
+            view.setUint16(offset, numChannels, true); offset += 2;
+            view.setUint32(offset, sampleRate, true); offset += 4;
+            view.setUint32(offset, byteRate, true); offset += 4;
+            view.setUint16(offset, blockAlign, true); offset += 2;
+            view.setUint16(offset, bytesPerSample * 8, true); offset += 2; // Bits per sample
+
+            // DATA chunk
+            writeString('data');
+            view.setUint32(offset, pcmData.byteLength, true); offset += 4;
+
+            // Write PCM data
+            const pcmBytes = new Uint8Array(pcmData);
+            for (let i = 0; i < pcmBytes.byteLength; i++) {
+                view.setUint8(offset++, pcmBytes[i]);
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+
+        /** Updates a score bar's width and text based on a single score value (1.0-5.0) */
+        function updateScoreBar(key, value) {
+            const percentage = Math.max(0, Math.min(100, Math.round(value * 20))); // Normalize 0-5 scale to 0-100%
+            const barGroup = $(`score-${key}`);
+            if (barGroup) {
+                barGroup.querySelector('.progress-bar-fill').style.width = `${percentage}%`;
+                barGroup.querySelector('.score-value').textContent = `${percentage}%`;
+            }
+        }
+
+        /** Calculates the running overall score and updates the display */
+        function calculateOverallScore() {
+            const { communication, technical, confidence } = state.runningScores;
+            
+            let overallTotal = communication.total + technical.total + confidence.total;
+            let overallCount = communication.count + technical.count + confidence.count;
+
+            const overall = overallCount > 0 ? overallTotal / overallCount : 0.0;
+            state.runningScores.overall = overall;
+            elements.overallScoreDisplay.textContent = overall.toFixed(1);
+            
+            return overall;
+        }
+
+        /**
+         * Calls the Analyser Component (AC) model for structured, real-time feedback.
+         * @param {string} lastAiQuestion The question the user just answered.
+         * @param {string} userResponse The user's transcribed response.
+         */
+        async function fetchGeminiStructuredAnalysis(lastAiQuestion, userResponse) {
+            const role = state.selectedRole.name;
+            
+            // Detailed prompt for scrutiny based on user requirements
+            const systemPrompt = `You are a highly critical but fair interview performance analyser for a ${role} position. Your job is to scrutinize the candidate's response to the preceding question based on specific criteria. Score the candidate's performance from 1.0 (poor) to 5.0 (excellent) for the single turn, and provide instantaneous feedback.
+
+**Scrutiny Criteria for Analysis (Scoring 1.0-5.0):**
+1. **Communication (Fluency/Clarity):** Evaluate sentence structure, clarity, use of filler words, pace, and whether the answer was direct or rambling. A clear, concise answer scores high. Significant mismatch between complex topic and basic vocabulary scores low.
+2. **Technical Depth (Correctness/Examples):** Evaluate the correctness of concepts, the use of appropriate terminology, the quality/relevance of examples provided, and how deep the answer goes into the topic. Missing key examples or superficial explanations score low.
+3. **Confidence (Conviction):** Evaluate the logical flow and assertiveness of the argument. Excessive hedging or circular logic scores low.
+
+Your response MUST strictly adhere to the provided JSON schema.`;
+
+            const userQuery = `Role: ${role}\nQuestion: "${lastAiQuestion}"\nCandidate Response: "${userResponse}"`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: ANALYSIS_SCHEMA
+                }
+            };
+
+            // Check if AC API key is set before proceeding
+            if (!acApiKey || acApiKey === "") {
+                showMessage("Analyser Component (AC) API Key is missing. Live analysis is disabled.", true);
+                return null;
+            }
+
+            try {
+                const response = await retryFetch(ANALYSIS_API_BASE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (jsonText) {
+                    return JSON.parse(jsonText);
+                }
+                return null;
+
+            } catch (error) {
+                // console.error('Gemini Analysis API Error:', error);
+                return null;
+            }
+        }
+
+        /** Updates the live analysis panel using the Gemini structured output */
+        async function updateAnalysis(userText) {
+            if (!state.lastAiQuestion) return; // Skip if no question has been asked yet (first turn)
+
+            const analysis = await fetchGeminiStructuredAnalysis(state.lastAiQuestion, userText);
+            
+            if (analysis && analysis.communication !== undefined) {
+                // Update running average totals (only on successful analysis)
+                state.runningScores.communication.total += analysis.communication;
+                state.runningScores.communication.count += 1;
+                state.runningScores.technical.total += analysis.technical;
+                state.runningScores.technical.count += 1;
+                state.runningScores.confidence.total += analysis.confidence;
+                state.runningScores.confidence.count += 1;
+
+                // Update instantaneous scores for display consistency
+                state.runningScores.communication.current = analysis.communication;
+                state.runningScores.technical.current = analysis.technical;
+                state.runningScores.confidence.current = analysis.confidence;
+
+                // Update UI elements based on instantaneous analysis score
+                updateScoreBar('comm', analysis.communication);
+                updateScoreBar('tech', analysis.technical);
+                updateScoreBar('conf', analysis.confidence);
+                calculateOverallScore();
+
+                // Update Live Notes
+                elements.liveNotes.querySelector('.tip-default')?.remove();
+                
+                const newNote = analysis.liveTip;
+                if (newNote) {
+                    const noteEl = document.createElement('li');
+                    noteEl.className = 'text-sm p-2 bg-gray-700/50 rounded-lg animate-fadeIn';
+                    noteEl.innerHTML = `<span class="text-cyan-400 mr-1">•</span> ${newNote}`;
+                    elements.liveNotes.prepend(noteEl);
+                    // Keep only the latest 5 notes
+                    while (elements.liveNotes.children.length > 5) {
+                        elements.liveNotes.lastChild.remove();
+                    }
+                }
+            } else {
+                 // Analysis failed, scores remain unchanged, but still give general encouragement
+                 elements.liveNotes.querySelector('.tip-default')?.remove();
+                 const noteEl = document.createElement('li');
+                 noteEl.className = 'text-sm p-2 bg-gray-700/50 rounded-lg animate-fadeIn';
+                 noteEl.innerHTML = `<span class="text-yellow-400 mr-1">•</span> Keep practicing your answers for a detailed score!`;
+                 elements.liveNotes.prepend(noteEl);
+            }
+        }
+
+        /**
+         * Generates the final comprehensive report using the AC model (free text output).
+         * @returns {Promise<string>} The detailed markdown report.
+         */
+        async function generateFinalReport() {
+            const role = state.selectedRole.name;
+            const overallScore = state.runningScores.overall.toFixed(1);
+            const commAvg = (state.runningScores.communication.total / state.runningScores.communication.count || 0).toFixed(1);
+            const techAvg = (state.runningScores.technical.total / state.runningScores.technical.count || 0).toFixed(1);
+            const confAvg = (state.runningScores.confidence.total / state.runningScores.confidence.count || 0).toFixed(1);
+
+            const transcriptText = state.chatHistory.map(
+                msg => `${msg.sender === 'user' ? 'Candidate' : 'Interviewer'}: ${msg.text}`
+            ).join('\n\n');
+
+            const systemPrompt = `You are a professional Interview Performance Reviewer. Your task is to provide a comprehensive, detailed final report on the candidate's performance for the ${role} position. Use markdown formatting for clarity.
+            
+            **The required output structure MUST be followed exactly, using these headings in this order.**
+            
+            ## Overall Score Summary
+            State the final overall score (${overallScore}/5.0) and briefly mention the strongest and weakest areas based on the average scores below.
+            
+            ## Technical Depth & Suggestions (Average Score: ${techAvg}/5.0)
+            Point out 1-2 specific topics or moments where the candidate lacked depth or provided incorrect/vague examples. Suggest 2-3 concrete technical topics/concepts the candidate must study harder (e.g., 'Master the CAP Theorem'). Use bullet points for suggestions.
+            
+            ## Communication & Fluency Suggestions (Average Score: ${commAvg}/5.0)
+            Point out 1-2 instances of poor clarity, excessive filler, or rambling. Give 2-3 specific non-technical tips for improvement (e.g., 'Practice structuring answers using STAR method.'). Use bullet points for suggestions.
+            
+            ## Concluding Feedback
+            Provide a final, encouraging closing statement on their interview readiness.
+
+**Input Data:**
+- Final Averages: Communication=${commAvg}, Technical=${techAvg}, Confidence=${confAvg}
+- Full Interview Transcript:
+${transcriptText}
+`;
+            const payload = {
+                contents: [{ parts: [{ text: systemPrompt }] }],
+            };
+
+            if (!acApiKey || acApiKey === "") {
+                return `## Analysis Disabled\n\nFinal detailed analysis requires the Analyser Component API Key. Please enter the key to unlock this feature.`;
+            }
+
+            try {
+                const response = await retryFetch(ANALYSIS_API_BASE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                return result.candidates?.[0]?.content?.parts?.[0]?.text || "Error: Could not retrieve detailed analysis.";
+
+            } catch (error) {
+                // console.error("Final Report Generation Error:", error);
+                return `## Report Generation Failed\n\nThere was a network error or API failure while generating the detailed report. Please check your AC API key and network connection.`;
+            }
+        }
+
+
+        // --- SCREEN MANAGEMENT ---
+
+        /** Switches the current view */
+        function showScreen(screenId) {
+            const screens = [elements.roleSelectionScreen, elements.interviewScreen, elements.reportScreen, elements.reportLoadingScreen];
+            screens.forEach(screen => {
+                screen.classList.remove('active');
+                screen.classList.add('hidden');
+            });
+            const activeScreen = $(screenId);
+            if (activeScreen) {
+                activeScreen.classList.remove('hidden');
+                // Use a slight timeout to trigger the transition effect
+                setTimeout(() => activeScreen.classList.add('active'), 10);
+                state.currentScreen = screenId;
+            }
+        }
+
+        // --- ROLE SELECTION LOGIC ---
+
+        function renderRoleSelection() {
+            elements.roleGrid.innerHTML = '';
+            ROLES.forEach(role => {
+                const isSelected = state.selectedRole && state.selectedRole.id === role.id;
+                const card = document.createElement('div');
+                card.className = `glass-card p-6 rounded-xl cursor-pointer neon-hover transition duration-300 ${isSelected ? 'neon-selected' : ''}`;
+                card.innerHTML = `
+                    <h3 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-400 mb-2">${role.name}</h3>
+                    <p class="text-gray-400 text-sm">${role.description}</p>
+                `;
+                card.addEventListener('click', () => handleRoleSelection(role));
+                elements.roleGrid.appendChild(card);
+            });
+        }
+
+        function handleRoleSelection(role) {
+            state.selectedRole = role;
+            renderRoleSelection(); // Re-render to highlight selection
+            elements.startInterviewBtn.disabled = false;
+        }
+
+        // --- CHAT & AI TTS/API LOGIC ---
+
+        /** Renders a new chat message into the container */
+        function addMessage(sender, text, isInterim = false) {
+            const isUser = sender === 'user';
+            let chatEl = null;
+
+            if (isInterim) {
+                // Update existing interim, or create one if it doesn't exist
+                chatEl = elements.chatContainer.querySelector('.interim-message');
+                if (!chatEl) {
+                    chatEl = document.createElement('div');
+                    chatEl.className = 'interim-message self-end text-right';
+                    elements.chatContainer.appendChild(chatEl);
+                }
+                chatEl.innerHTML = `<div class="inline-block p-3 rounded-xl rounded-br-none max-w-lg shadow-xl ${isUser ? 'bg-cyan-900/50 text-white' : 'bg-pink-900/50 text-white'}"><p class="interim-text">${text}<span class="typing-cursor">|</span></p></div>`;
+            } else {
+                // Final message
+                elements.chatContainer.querySelector('.interim-message')?.remove();
+
+                chatEl = document.createElement('div');
+                chatEl.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+                chatEl.innerHTML = `
+                    <div class="p-3 rounded-xl max-w-lg shadow-xl transition duration-500 ease-in-out transform scale-95 opacity-0 ${isUser ? 'bg-cyan-900/50 text-white rounded-br-none' : 'bg-pink-900/50 text-white rounded-tl-none'}">
+                        <p class="font-medium text-sm">${text}</p>
+                        <span class="text-xs text-gray-400 block mt-1">${isUser ? 'You' : 'AI'} • ${new Date().toLocaleTimeString()}</span>
+                    </div>
+                `;
+                elements.chatContainer.appendChild(chatEl);
+
+                // Add animation class after appending
+                setTimeout(() => {
+                    const bubble = chatEl.querySelector('div');
+                    bubble.classList.remove('scale-95', 'opacity-0');
+                    bubble.classList.add('scale-100', 'opacity-100');
+                }, 10);
+
+                if (isUser) {
+                    state.chatHistory.push({ sender: 'user', text: text });
+                } else {
+                    state.chatHistory.push({ sender: 'ai', text: text });
+                }
+            }
+            autoScrollChat();
+        }
+        
+        /** Calls Gemini Text API (CC) to generate the next question */
+        async function fetchGeminiTextQuestion(userText) {
+            const role = state.selectedRole.name;
+            
+            // **REFINED SYSTEM PROMPT for conversational, human-like behavior**
+            const systemPrompt = `You are a highly skilled technical interviewer for a ${role} position. Your persona should be friendly, professional, and rigorous.
+            
+            **Rules for Interaction:**
+            1. **Conversational Flow:** Maintain a continuous, natural conversation. Do not use huge, blocky sentences.
+            2. **Conciseness:** Your response must be short and direct. Do not provide feedback or greetings (unless starting the session).
+            3. **Follow-Up Logic:**
+               - **If the user's answer (latest input) is brief or incomplete:** Ask a direct counter-question to probe for deeper detail or clarification on a specific point mentioned.
+               - **If the user's answer is complex but slightly ambiguous or unclear (e.g., due to STT errors):** Ask a clarifying question (e.g., "Could you rephrase that last part about X?").
+               - **If the user has clearly answered the previous question:** Introduce the next logical question or topic for the ${role} interview.
+            4. **Output:** Your response must be the next question or clarifying statement only.`;
+
+            const contents = state.chatHistory.map(msg => ({
+                role: msg.sender === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.text }]
+            }));
+            
+            // Add the user's latest message to the conversation context
+            contents.push({ role: 'user', parts: [{ text: userText }] });
+
+            const payload = {
+                contents: contents,
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            // Check if CC API key is set before proceeding
+            if (!ccApiKey || ccApiKey === "") {
+                showMessage("Conversation Carrier (CC) API Key is missing. Conversation is disabled.", true);
+                return `(CC Disabled: Please provide your API key to continue the conversation.)`;
+            }
+
+            try {
+                const response = await retryFetch(TEXT_API_BASE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    return text.trim();
+                }
+                return `(API Error: Could not generate question.) Given the ${role} role, how do you handle asynchronous operations in your primary programming language?`;
+
+            } catch (error) {
+                // console.error('Gemini Question API Error:', error);
+                return `(Connection Error: Using fallback question.) Can you describe a challenging problem you solved recently, and how you approached it?`;
+            }
+        }
+
+
+        /** Calls Gemini TTS API for audio, then types and plays it simultaneously */
+        async function fetchGeminiAudio(questionText) {
+            state.aiIsTyping = true;
+            elements.aiThinkingIndicator.classList.remove('hidden');
+
+            const aiMessageEl = document.createElement('div');
+            aiMessageEl.className = 'flex justify-start';
+            aiMessageEl.innerHTML = `
+                <div class="p-3 rounded-xl max-w-lg shadow-xl bg-pink-900/50 text-white rounded-tl-none">
+                    <p class="font-medium text-sm ai-typing-output"></p>
+                    <span class="text-xs text-gray-400 block mt-1">AI • ${new Date().toLocaleTimeString()}</span>
+                </div>
+            `;
+            elements.chatContainer.appendChild(aiMessageEl);
+            autoScrollChat();
+            
+            // Get the reference to the *newly created* paragraph element for typing
+            const outputEl = aiMessageEl.querySelector('.ai-typing-output'); 
+            
+            let audioUrl = null;
+
+            // 1. Request TTS audio for the generated question text
+            const payload = {
+                contents: [{ parts: [{ text: questionText }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: TTS_VOICE }
+                        }
+                    }
+                },
+                model: TTS_MODEL
+            };
+            
+            // Check if CC API key is set before proceeding (same key used for TTS)
+            if (!ccApiKey || ccApiKey === "") {
+                // Skip audio generation, rely only on the text output
+                showMessage("TTS (CC) API Key is missing. Audio output is disabled.", true);
+            } else {
+                try {
+                    const response = await retryFetch(TTS_API_BASE_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+                    const audioPart = result.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+
+                    if (audioPart && audioPart.mimeType.startsWith("audio/")) {
+                        const audioBuffer = base64ToArrayBuffer(audioPart.data);
+                        const wavBlob = pcmToWav(audioBuffer);
+                        audioUrl = URL.createObjectURL(wavBlob);
+                    } else {
+                        showMessage("TTS API error: Could not generate audio.", true);
+                    }
+                } catch (error) {
+                    // console.error('Gemini TTS API Error:', error);
+                    showMessage("Connection error with Gemini TTS API. Cannot play audio.", true);
+                }
+            }
+            
+            
+            // 2. Type the generated text (simultaneously with audio playback)
+            const typingSpeed = 20; // ms per character
+            outputEl.innerHTML = '';
+            outputEl.classList.add('typing-cursor');
+
+            // Define the typing loop as a non-blocking promise
+            const typingPromise = new Promise(async (resolve) => {
+                for (let i = 0; i < questionText.length; i++) {
+                    outputEl.textContent += questionText[i];
+                    autoScrollChat();
+                    await new Promise(resolve => setTimeout(resolve, typingSpeed));
+                }
+                outputEl.classList.remove('typing-cursor');
+                resolve();
+            });
+
+            // 3. Play the generated audio immediately (concurrently)
+            if (audioUrl) {
+                audioPlayer = new Audio(audioUrl);
+                
+                // Finalize state when audio finishes
+                audioPlayer.onended = () => {
+                    state.aiIsTyping = false;
+                    elements.aiThinkingIndicator.classList.add('hidden');
+                };
+                
+                audioPlayer.play().catch(e => {
+                    showMessage("Autoplay failed. Please interact with the page first.", false);
+                    // If autoplay fails, hide indicator after typing finishes
+                    typingPromise.then(() => {
+                        state.aiIsTyping = false;
+                        elements.aiThinkingIndicator.classList.add('hidden');
+                    });
+                });
+            } else {
+                // If no audio, finalize state after typing finishes
+                typingPromise.then(() => {
+                    state.aiIsTyping = false;
+                    elements.aiThinkingIndicator.classList.add('hidden');
+                });
+            }
+            
+            // Wait only for the typing to complete so the full text is displayed
+            await typingPromise;
+
+            // 4. Update chat history and the last question marker
+            state.chatHistory.push({ sender: 'ai', text: questionText });
+            state.lastAiQuestion = questionText; // Set the last question asked
+            
+            // The AI thinking indicator and state.aiIsTyping cleanup is now deferred 
+            // until the audio finishes playing (via audioPlayer.onended).
+        }
+
+
+        // --- SPEECH-TO-TEXT (STT) LOGIC ---
+
+        function startListening() {
+            if (!SPEECH_RECOGNITION) {
+                showMessage("Speech-to-Text is not supported in this browser (Use Chrome or Edge).");
+                return;
+            }
+            if (state.interviewRunning) {
+                try {
+                    state.recognition.start();
+                    elements.micStatus.style.backgroundColor = 'var(--neon-blue)';
+                    elements.interimTranscript.textContent = 'Listening...';
+                } catch (e) {
+                    // console.warn('Recognition start error, likely already listening:', e);
+                }
+            }
+        }
+
+        function stopListening() {
+            if (state.recognition) {
+                state.recognition.stop();
+            }
+            if (audioPlayer) {
+                audioPlayer.pause();
+                audioPlayer = null;
+            }
+            clearTimeout(state.sttRestartTimer);
+            elements.micStatus.style.backgroundColor = 'var(--bg-dark)';
+            elements.interimTranscript.textContent = 'Speech stopped.';
+        }
+
+        function setupSTT() {
+            if (!SPEECH_RECOGNITION) {
+                showMessage("Browser STT (webkitSpeechRecognition) not found. Interview cannot run.");
+                return;
+            }
+
+            state.recognition = new SPEECH_RECOGNITION();
+            state.recognition.continuous = true;
+            state.recognition.interimResults = true;
+            state.recognition.lang = 'en-US';
+
+            state.recognition.onstart = () => {
+                elements.micStatus.style.backgroundColor = 'var(--neon-blue)';
+                elements.interimTranscript.textContent = 'Listening... Speak now.';
+            };
+
+            state.recognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                // Display interim text
+                elements.interimTranscript.textContent = interimTranscript;
+                if (interimTranscript) {
+                    addMessage('user', interimTranscript, true);
+                }
+
+                // Process final transcript
+                if (finalTranscript && !state.aiIsTyping) {
+                    const finalTranscriptText = finalTranscript.trim();
+                    addMessage('user', finalTranscriptText);
+                    elements.interimTranscript.textContent = 'Transcript recorded. AI is thinking...';
+
+                    // 1. Trigger Analysis (AC) - Analysis must run before the next question is generated for CC context
+                    updateAnalysis(finalTranscriptText); 
+                    
+                    // 2. Trigger Next Question (CC & TTS)
+                    fetchGeminiTextQuestion(finalTranscriptText)
+                        .then(question => fetchGeminiAudio(question))
+                        .catch(err => {
+                            // console.error("Full turn error:", err);
+                            showMessage("Error during AI response generation.", true);
+                        });
+                }
+            };
+
+            state.recognition.onerror = (event) => {
+                // Ignore silent errors that occur during typical flow
+                if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                    // console.error('STT Error:', event.error);
+                }
+                elements.micStatus.style.backgroundColor = 'var(--neon-pink)';
+                elements.interimTranscript.textContent = 'Speech error/paused. Restarting...';
+            };
+
+            state.recognition.onend = () => {
+                if (state.interviewRunning) {
+                    elements.micStatus.style.backgroundColor = 'var(--neon-pink)';
+                    // Auto-restart with backoff to maintain continuous listening
+                    state.sttRestartTimer = setTimeout(() => {
+                        // Only restart STT if the AI is not currently speaking/typing
+                        if (state.interviewRunning && !state.aiIsTyping) {
+                             startListening();
+                        } else if (state.interviewRunning && state.aiIsTyping) {
+                            // If AI is typing/talking, wait a moment and then check again.
+                            setTimeout(() => startListening(), 3000);
+                        }
+                    }, 1000); // 1-second backoff
+                }
+            };
+        }
+
+
+        // --- FLOW / EVENT HANDLERS ---
+
+        /** Initializes the application and renders the first screen. */
+        function initApp() {
+            renderRoleSelection();
+            setupSTT();
+
+            elements.startInterviewBtn.addEventListener('click', startInterview);
+            elements.endInterviewBtn.addEventListener('click', endInterview);
+            elements.downloadFullReportBtn.addEventListener('click', () => downloadReport('full'));
+            elements.downloadTranscriptBtn.addEventListener('click', () => downloadReport('transcript'));
+        }
+
+        /** Begins the interview flow. */
+        function startInterview() {
+            if (!state.selectedRole) return;
+
+            // Reset state for new interview
+            state.interviewRunning = true;
+            state.chatHistory = [];
+            state.runningScores = {
+                communication: { total: 0, count: 0, current: 0 },
+                technical: { total: 0, count: 0, current: 0 },
+                confidence: { total: 0, count: 0, current: 0 },
+                overall: 0,
+            };
+            // Initialize UI scores to 0
+            updateScoreBar('comm', 0);
+            updateScoreBar('tech', 0);
+            updateScoreBar('conf', 0);
+            elements.overallScoreDisplay.textContent = '0.0';
+
+            // Clear chat and notes
+            elements.chatContainer.innerHTML = '';
+            elements.liveNotes.innerHTML = '<li class="tip-default italic">Your real-time analysis will appear here after your first answer.</li>';
+
+            // Update header and screen
+            elements.currentRoleDisplay.textContent = state.selectedRole.name;
+            elements.headerTitle.textContent = `${state.selectedRole.name} Mock Interview`;
+            elements.headerSubtitle.textContent = 'Practice makes perfect.';
+            showScreen('interview-screen');
+
+            // Start AI with the first question (triggers the Text/TTS API call sequence)
+            const initialQuestion = `Hello, thank you for coming in today. We'll be conducting an interview for the ${state.selectedRole.name} position. To start, can you please tell me a bit about your background and why you are interested in this role?`;
+            
+            setTimeout(() => {
+                fetchGeminiAudio(initialQuestion);
+                startListening();
+            }, 1000);
+        }
+
+        /** Ends the interview and transitions to the report screen. */
+        async function endInterview() {
+            state.interviewRunning = false;
+            stopListening();
+            
+            // Show loading screen while analysis runs
+            showScreen('report-loading-screen');
+            
+            const detailedReport = await generateFinalReport();
+            
+            // Hide loading screen and show report
+            generateReport(detailedReport);
+            showScreen('report-screen');
+            
+            elements.headerTitle.textContent = 'Interview Report';
+            elements.headerSubtitle.textContent = 'Detailed breakdown of your performance.';
+        }
+
+        /** Populates the final report screen with both scores and detailed LLM feedback. */
+        function generateReport(detailedReport) {
+            // 1. Final Scores calculation
+            const overall = calculateOverallScore();
+            const commAvg = state.runningScores.communication.count > 0 ? state.runningScores.communication.total / state.runningScores.communication.count : 0;
+            const techAvg = state.runningScores.technical.count > 0 ? state.runningScores.technical.total / state.runningScores.technical.count : 0;
+            const confAvg = state.runningScores.confidence.count > 0 ? state.runningScores.confidence.total / state.runningScores.confidence.count : 0;
+
+            $('final-overall-score').textContent = overall.toFixed(1);
+
+            // 2. Populate Final Score Bars
+            elements.finalScoresBars.innerHTML = '';
+            
+            const scoresToDisplay = [
+                { key: 'comm', value: commAvg, color: 'cyan-400', label: 'Communication' },
+                { key: 'tech', value: techAvg, color: 'pink-400', label: 'Technical Depth' },
+                { key: 'conf', value: confAvg, color: 'green-400', label: 'Confidence & Fluency' },
+            ];
+
+            scoresToDisplay.forEach(score => {
+                const percentage = Math.round(score.value * 20);
+                const barGroup = document.createElement('div');
+                barGroup.className = 'score-bar-group';
+                barGroup.innerHTML = `
+                    <p class="text-sm font-medium text-${score.color} flex justify-between">
+                        ${score.label}
+                        <span class="score-value font-bold">${percentage}%</span>
+                    </p>
+                    <div class="w-full bg-gray-700 rounded-full h-2.5 mt-1">
+                        <div class="progress-bar-fill h-2.5 rounded-full" style="width: ${percentage}%; background-color: var(--neon-${score.key === 'conf' ? 'green' : score.key === 'comm' ? 'blue' : 'pink'});"></div>
+                    </div>
+                `;
+                elements.finalScoresBars.appendChild(barGroup);
+            });
+
+            // 3. Detailed Feedback (LLM Output) - SPLIT AND RENDER
+            const sections = splitReport(detailedReport);
+
+            // Function to render content into a card
+            const renderCardContent = (element, rawContent) => {
+                const title = element.querySelector('h3').outerHTML;
+                // Render the content, skipping the H2/H3 header if the LLM provided it again
+                let content = rawContent.replace(/#+ Overview|#+ Overall Score Summary|#+ Technical Depth & Suggestions|#+ Communication & Fluency Suggestions|#+ Concluding Feedback/gi, '').trim();
+                
+                // If content is empty or placeholder, use the default text
+                if (!content || content.length < 5) {
+                    element.querySelector('p').textContent = 'Analysis data unavailable.';
+                } else {
+                    // Clear the old content (p tag) and replace it with parsed Markdown
+                    element.innerHTML = title + parseMarkdown(content);
+                }
+            };
+            
+            renderCardContent(elements.reportSummaryCard, sections.summary);
+            renderCardContent(elements.reportTechnicalCard, sections.technical);
+            renderCardContent(elements.reportCommunicationCard, sections.communication);
+            renderCardContent(elements.reportConclusionCard, sections.conclusion);
+
+
+            // 4. Full Transcript
+            elements.reportTranscriptContainer.innerHTML = state.chatHistory.map(msg => {
+                const isUser = msg.sender === 'user';
+                const color = isUser ? 'text-cyan-400' : 'text-pink-400';
+                const header = isUser ? 'You:' : 'AI Interviewer:';
+                return `<p class="mb-2"><span class="font-bold ${color}">${header}</span> ${msg.text}</p>`;
+            }).join('<hr class="border-gray-700 my-4">');
+        }
+
+        /** Downloads the report as a text file. */
+        function downloadReport(type) {
+            const overall = state.runningScores.overall;
+            const commAvg = state.runningScores.communication.count > 0 ? state.runningScores.communication.total / state.runningScores.communication.count : 0;
+            const techAvg = state.runningScores.technical.count > 0 ? state.runningScores.technical.total / state.runningScores.technical.count : 0;
+            const confAvg = state.runningScores.confidence.count > 0 ? state.runningScores.confidence.total / state.runningScores.confidence.count : 0;
+            const filename = `AI_Interview_Report_${state.selectedRole.id}_${Date.now()}`;
+            
+            let content = "";
+
+            // --- Transcript Content ---
+            const transcriptContent = state.chatHistory.map(msg => 
+                `${msg.sender === 'user' ? 'Candidate' : 'Interviewer'}: ${msg.text}`
+            ).join('\n\n');
+
+            if (type === 'transcript') {
+                content = `--- INTERVIEW TRANSCRIPT: ${state.selectedRole.name} ---\n\n${transcriptContent}`;
+            } 
+            
+            // --- Full Report Content ---
+            else if (type === 'full') {
+                content = `--- AI MOCK INTERVIEW REPORT: ${state.selectedRole.name} ---\n`;
+                content += `Date: ${new Date().toLocaleString()}\n\n`;
+                content += `--- SCORE SUMMARY ---\n`;
+                content += `Overall Score: ${overall.toFixed(1)} / 5.0\n`;
+                content += `Communication Average: ${commAvg.toFixed(1)}/5.0 (${Math.round(commAvg * 20)}%)\n`;
+                content += `Technical Depth Average: ${techAvg.toFixed(1)}/5.0 (${Math.round(techAvg * 20)}%)\n`;
+                content += `Confidence & Fluency Average: ${confAvg.toFixed(1)}/5.0 (${Math.round(confAvg * 20)}%)\n\n`;
+                content += `--- DETAILED FEEDBACK ---\n\n`;
+                // Use the raw text content from the LLM report container
+                
+                // Concatenate the sections from the UI elements for the full report download
+                let detailedText = '';
+                detailedText += elements.reportSummaryCard.innerText + '\n\n';
+                detailedText += elements.reportTechnicalCard.innerText + '\n\n';
+                detailedText += elements.reportCommunicationCard.innerText + '\n\n';
+                detailedText += elements.reportConclusionCard.innerText + '\n\n';
+                
+                content += detailedText.trim() + '\n\n'; 
+                content += `--- FULL TRANSCRIPT ---\n\n`;
+                content += transcriptContent;
+            } else {
+                return; // Do nothing if type is invalid
+            }
+
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${filename}_${type}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
